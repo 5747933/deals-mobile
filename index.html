@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1c1c1e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="羊毛站">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>羊毛信息站</title>
+<style>
+  :root{
+    --bg:#1c1c1e; --bg-elev:#2c2c2e; --bg-hover:#3a3a3c;
+    --border:#38383a; --text:#f2f2f7; --dim:#98989d; --faint:#636366;
+    --accent:#0a84ff; --price:#ff453a; --accent-bg:rgba(10,132,255,.16);
+    --hot:#ff9f0a; --good:#30d158;
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{overscroll-behavior-y:none;}
+  body{
+    margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei UI",sans-serif;
+    -webkit-font-smoothing:antialiased; padding-bottom:calc(24px + var(--safe-b));
+  }
+
+  header{
+    position:sticky; top:0; z-index:100; background:var(--bg-elev);
+    border-bottom:1px solid var(--border);
+    padding:calc(10px + var(--safe-t)) 14px 0;
+  }
+  .brand{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+  .brand h1{font-size:17px; margin:0; font-weight:650; letter-spacing:.2px;}
+  .ver{font-size:10px; color:var(--faint); font-variant-numeric:tabular-nums;}
+  .cnt{margin-left:auto; font-size:12px; color:var(--dim); font-variant-numeric:tabular-nums;}
+  .cnt b{color:var(--price); font-size:13px;}
+
+  .searchbar{display:flex; gap:8px;}
+  .searchbar input{
+    flex:1; padding:11px 14px; border-radius:10px; font-size:16px;
+    border:1px solid var(--border); background:var(--bg); color:var(--text);
+    outline:none; -webkit-appearance:none;
+  }
+  .searchbar input:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-bg);}
+  .searchbar button{
+    padding:11px 18px; border-radius:10px; border:1px solid var(--accent);
+    background:var(--accent); color:#fff; font-size:15px; font-weight:600;
+    cursor:pointer; white-space:nowrap;
+  }
+  .searchbar button:active{filter:brightness(.85);}
+
+  .filter-toggle{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    margin-top:10px; padding:9px 14px; font-size:13px; color:var(--accent);
+    cursor:pointer; border-top:1px solid var(--border);
+    margin-left:-14px; margin-right:-14px;
+  }
+  .filter-toggle .arrow{transition:transform .2s; font-size:10px;}
+  .filter-toggle.open .arrow{transform:rotate(180deg);}
+
+  .filters{
+    display:none; padding:6px 0 12px;
+    max-height:56vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  }
+  .filters.open{display:block;}
+  .fgroup{margin-bottom:12px;}
+  .fgroup:last-child{margin-bottom:0;}
+  .flabel{font-size:11px; color:var(--faint); margin-bottom:7px; letter-spacing:.3px;}
+  .frow{display:flex; gap:7px; flex-wrap:wrap;}
+
+  .chip{
+    padding:6px 13px; border-radius:15px; border:1px solid var(--border);
+    background:var(--bg); color:var(--text); font-size:13px;
+    cursor:pointer; user-select:none; transition:all .15s; white-space:nowrap;
+  }
+  .chip:active{background:var(--bg-hover);}
+  .chip.active{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;}
+  .chip .n{opacity:.6; font-size:11px; margin-left:3px; font-variant-numeric:tabular-nums;}
+  .chip.active .n{opacity:.85;}
+
+  .pricerow{display:flex; align-items:center; gap:8px;}
+  .pricerow input{
+    width:92px; padding:8px 10px; border-radius:8px; font-size:15px;
+    border:1px solid var(--border); background:var(--bg); color:var(--text);
+    outline:none; -webkit-appearance:none;
+  }
+  .pricerow input:focus{border-color:var(--accent);}
+  .pricerow .dash{color:var(--faint);}
+
+  .quickrow{display:flex; gap:8px; margin-top:10px; overflow-x:auto; padding-bottom:8px; scrollbar-width:none;}
+  .quickrow::-webkit-scrollbar{display:none;}
+  .qchip{
+    flex:0 0 auto; padding:7px 14px; border-radius:16px; font-size:13px;
+    border:1px solid var(--border); background:var(--bg); color:var(--text);
+    cursor:pointer; white-space:nowrap;
+  }
+  .qchip:active{background:var(--bg-hover);}
+
+  main{padding:12px 14px 20px;}
+  .status{text-align:center; padding:44px 20px; color:var(--dim); font-size:14px; line-height:1.7;}
+  .spinner{
+    display:inline-block; width:22px; height:22px; margin-right:8px; vertical-align:-5px;
+    border:2px solid var(--border); border-top-color:var(--accent);
+    border-radius:50%; animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .banner{
+    background:var(--accent-bg); color:var(--accent);
+    border:1px solid rgba(10,132,255,.3); border-radius:10px;
+    padding:9px 14px; font-size:12.5px; margin-bottom:12px; line-height:1.5;
+  }
+  .banner b{font-weight:700;}
+
+  .list{display:flex; flex-direction:column; gap:10px;}
+  .item{
+    background:var(--bg-elev); border-radius:12px; padding:13px;
+    display:flex; flex-direction:column; gap:7px;
+    border:1px solid transparent; transition:border-color .15s;
+  }
+  .item:active{background:var(--bg-hover);}
+  .top{display:flex; align-items:center; gap:6px; font-size:12px; flex-wrap:wrap;}
+  .plat{background:var(--accent-bg); color:var(--accent); padding:2px 8px; border-radius:5px; font-size:11px; font-weight:600;}
+  .tag{background:rgba(255,159,10,.16); color:var(--hot); padding:2px 7px; border-radius:5px; font-size:11px; font-weight:600;}
+  .tag.good{background:rgba(48,209,88,.16); color:var(--good);}
+  .tm{margin-left:auto; color:var(--faint); font-size:11px; font-variant-numeric:tabular-nums;}
+  .title{font-size:15px; line-height:1.45; word-break:break-word;}
+  .brandline{font-size:11px; color:var(--faint);}
+  .price{color:var(--price); font-weight:700; font-size:16px; font-variant-numeric:tabular-nums;}
+  .foot{display:flex; align-items:center; gap:10px; margin-top:2px;}
+  .engage{font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums;}
+  .link{
+    margin-left:auto; font-size:12px; color:var(--accent); text-decoration:none;
+    border:1px solid rgba(10,132,255,.35); padding:6px 13px; border-radius:7px;
+    white-space:nowrap;
+  }
+  .link:active{background:var(--accent); color:#fff;}
+
+  .more{
+    display:block; width:100%; margin-top:14px; padding:14px;
+    background:var(--bg-elev); border:1px solid var(--border);
+    border-radius:12px; color:var(--text); font-size:14px; cursor:pointer;
+  }
+  .more:active{background:var(--bg-hover);}
+
+  .note{
+    margin-top:26px; padding-top:16px; border-top:1px solid var(--border);
+    text-align:center; font-size:11px; line-height:1.8; color:var(--faint);
+  }
+  .note b{color:var(--dim);}
+
+  .updatebar{
+    position:fixed; left:12px; right:12px; bottom:calc(12px + var(--safe-b));
+    z-index:9999; display:none; background:#0a84ff; color:#fff;
+    border-radius:12px; padding:12px 16px; font-size:14px;
+    box-shadow:0 8px 28px rgba(0,0,0,.45); align-items:center; gap:12px;
+  }
+  .updatebar.show{display:flex;}
+  .updatebar span{flex:1;}
+  .updatebar button{
+    background:rgba(255,255,255,.22); border:none; color:#fff;
+    padding:8px 16px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>🐑 羊毛信息站</h1>
+    <span class="ver" id="ver"></span>
+    <span class="cnt" id="cnt"></span>
+  </div>
+
+  <div class="searchbar">
+    <input type="search" id="q" placeholder="搜全站优惠…" autocomplete="off" enterkeyhint="search">
+    <button id="go">搜索</button>
+  </div>
+
+  <div class="quickrow" id="quick">
+    <div class="qchip" data-k="零食">🍜 零食</div>
+    <div class="qchip" data-k="羽绒服">🧥 羽绒服</div>
+    <div class="qchip" data-k="显卡">🖥 显卡</div>
+    <div class="qchip" data-k="猫粮">🐱 猫粮</div>
+    <div class="qchip" data-k="手机">📱 手机</div>
+    <div class="qchip" data-k="纸巾">🧻 纸巾</div>
+    <div class="qchip" data-k="牛奶">🥛 牛奶</div>
+    <div class="qchip" data-k="洗发水">🧴 洗发水</div>
+  </div>
+
+  <div class="filter-toggle" id="ftoggle">
+    <span>筛选 / 排序</span><span class="arrow">▼</span>
+  </div>
+
+  <div class="filters" id="filters">
+    <div class="fgroup">
+      <div class="flabel">排序</div>
+      <div class="frow" id="sorts"></div>
+    </div>
+    <div class="fgroup">
+      <div class="flabel">快捷筛选</div>
+      <div class="frow" id="quicks"></div>
+    </div>
+    <div class="fgroup">
+      <div class="flabel">平台</div>
+      <div class="frow" id="platforms"></div>
+    </div>
+    <div class="fgroup">
+      <div class="flabel">价格区间（元）</div>
+      <div class="pricerow">
+        <input type="number" id="pmin" placeholder="最低" inputmode="numeric">
+        <span class="dash">—</span>
+        <input type="number" id="pmax" placeholder="最高" inputmode="numeric">
+        <button class="chip" id="reset" style="margin-left:auto;">重置</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="banner" id="banner" style="display:none"></div>
+  <div class="status" id="status">输入关键词，搜索全网优惠</div>
+  <div class="list" id="list"></div>
+  <button class="more" id="moreBtn" style="display:none">加载更多</button>
+
+  <div class="note">
+    内容来自 <b>什么值得买</b>，本页仅做信息聚合与阅读优化。<br>
+    版权归原作者及原网站所有，价格与优惠以原站为准。
+  </div>
+</main>
+
+<div class="updatebar" id="updatebar">
+  <span>发现新版本，已自动升级</span>
+  <button id="reloadBtn">立即刷新</button>
+</div>
+
+<script>
+const ITEM_CHANNELS = ["youhui", "faxian"];
+const PAGE_SIZE = 60;
+
+let ALL = [];
+let state = { platform: "全部", pmin: null, pmax: null, sort: "score" };
+let quickMode = "";
+let shownCount = PAGE_SIZE;
+let loading = false;
+let cbSeq = 0;
+let currentKeyword = "";
+
+const SORTS = [
+  { key: "score",      label: "🎯 综合评分" },
+  { key: "time",       label: "⏰ 最新" },
+  { key: "comments",   label: "💬 评论多" },
+  { key: "collection", label: "⭐ 收藏多" },
+  { key: "worthy",     label: "👍 值票多" },
+  { key: "priceAsc",   label: "💰 价格低→高" },
+  { key: "priceDesc",  label: "💰 价格高→低" },
+];
+
+const FOOD_RE = /食|零食|果|奶|酒|茶|咖啡|饮|肉|菜|米|油|饼干|蛋糕|糖|巧克力|坚果|薯片|面包|方便面|火腿|海鲜|水产|蛋|豆干|辣条/;
+const QUICKS = [
+  { key: "food",       label: "🍜 只看吃的", test: d => FOOD_RE.test(d.title) },
+  { key: "cheap",      label: "💰 50元以下", test: d => d.price != null && d.price <= 50 },
+  { key: "supercheap", label: "🔥 10元以下", test: d => d.price != null && d.price <= 10 },
+  { key: "coupon",     label: "🎫 需用券",   test: d => (d.priceText||"").includes("券") },
+  { key: "hot",        label: "🔥 评论≥20",  test: d => (d.comments||0) >= 20 },
+  { key: "worthy20",   label: "👍 值≥20",    test: d => (d.worthy||0) >= 20 },
+  { key: "collect50",  label: "⭐ 收藏≥50",  test: d => (d.collection||0) >= 50 },
+];
+
+function esc(s){
+  return String(s??"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function parsePrice(s){
+  if(!s) return null;
+  const m = String(s).replace(/,/g,"").match(/(\d+(?:\.\d+)?)/);
+  return m ? parseFloat(m[1]) : null;
+}
+function score(d){
+  return (d.comments||0)*3 + (d.collection||0)*2 + (d.worthy||0);
+}
+function worthyPct(d){
+  const w = d.worthy||0, u = d.unworthy||0, t = w+u;
+  return t > 0 ? Math.round(w/t*100) : null;
+}
+function marks(d){
+  const out = [], pct = worthyPct(d);
+  if((d.comments||0) >= 15 && (pct === null || pct >= 90)) out.push({t:"🔥 爆款", c:"tag"});
+  else if((d.collection||0) >= 100 || (d.comments||0) >= 20) out.push({t:"热", c:"tag"});
+  if((d.worthy||0) >= 10 && pct !== null && pct >= 90) out.push({t:"⭐ 值", c:"tag good"});
+  if((d.comments||0) >= 10 && pct !== null && pct < 70) out.push({t:"⚠️ 争议", c:"tag"});
+  if((d.collection||0) >= 10 && (d.comments||0) < 5) out.push({t:"🌱 潜力", c:"tag good"});
+  return out;
+}
+function setStatus(html){ document.getElementById("status").innerHTML = html; }
+
+function jsonp(url){
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    let done = false;
+    s.src = url;
+    s.onload = () => { done = true; try{s.remove();}catch(e){} resolve(); };
+    s.onerror = () => { if(!done){ try{s.remove();}catch(e){} reject(new Error("网络请求失败")); } };
+    document.body.appendChild(s);
+    setTimeout(() => {
+      if(!done){ try{s.remove();}catch(e){} reject(new Error("请求超时")); }
+    }, 15000);
+  });
+}
+
+async function doSearch(kw){
+  if(!kw || loading) return;
+  loading = true;
+  currentKeyword = kw;
+
+  const cbName = "smzcb" + (++cbSeq) + "_" + Date.now();
+  let result = null;
+  window[cbName] = function(data){ result = data; };
+
+  ALL = [];
+  shownCount = PAGE_SIZE;
+  document.getElementById("list").innerHTML = "";
+  document.getElementById("moreBtn").style.display = "none";
+  document.getElementById("banner").style.display = "none";
+  document.getElementById("cnt").textContent = "";
+  setStatus('<span class="spinner"></span> 正在搜索「' + esc(kw) + '」…');
+
+  const url = "https://api.smzdm.com/v1/list?keyword=" + encodeURIComponent(kw)
+            + "&limit=100&offset=0&callback=" + cbName;
+
+  try{
+    await jsonp(url);
+    await new Promise(r => setTimeout(r, 80));
+
+    if(!result){ setStatus("没有取到数据，请重试"); return; }
+    if(result.error_code !== "0"){
+      setStatus("接口返回错误：" + esc(result.error_msg || result.error_code));
+      return;
+    }
+
+    const d = result.data || {};
+    ALL = (d.rows || [])
+      .filter(r => {
+        const ch = (r.article_channel_type || "").toLowerCase();
+        return !ch || ITEM_CHANNELS.indexOf(ch) > -1;
+      })
+      .map(r => ({
+        title: (r.article_title || "").trim(),
+        priceText: (r.article_price || "").trim(),
+        price: parsePrice(r.article_price),
+        platform: (r.article_mall || "综合").trim(),
+        brand: (r.article_brand || "").trim(),
+        time: (r.article_format_date || "").trim(),
+        link: r.article_url || "",
+        comments: +r.article_comment || 0,
+        collection: +r.article_collection || 0,
+        worthy: +r.article_worthy || 0,
+        unworthy: +r.article_unworthy || 0,
+      }))
+      .filter(x => x.title && x.link);
+
+    if(!ALL.length){
+      setStatus("没有找到「" + esc(kw) + "」的优惠，换个词试试");
+      return;
+    }
+
+    const total = Number(d.total_num || 0);
+    document.getElementById("cnt").innerHTML = "命中 <b>" + total.toLocaleString() + "</b>";
+    document.getElementById("banner").style.display = "block";
+    document.getElementById("banner").innerHTML =
+      '🔍 全站搜索「<b>' + esc(kw) + '</b>」· 命中 <b>' + total.toLocaleString() +
+      '</b> 条 · 已取 ' + ALL.length + ' 条';
+
+    setStatus("");
+    buildFilters();
+    render();
+  }catch(e){
+    setStatus("搜索失败：" + esc(e.message) + "<br><span style='font-size:12px'>请检查网络后重试</span>");
+  }finally{
+    loading = false;
+  }
+}
+
+function buildFilters(){
+  const sbox = document.getElementById("sorts");
+  sbox.innerHTML = "";
+  SORTS.forEach(s => {
+    const el = document.createElement("div");
+    el.className = "chip" + (state.sort === s.key ? " active" : "");
+    el.textContent = s.label;
+    el.onclick = () => { state.sort = s.key; shownCount = PAGE_SIZE; buildFilters(); render(); };
+    sbox.appendChild(el);
+  });
+
+  const qbox = document.getElementById("quicks");
+  qbox.innerHTML = "";
+  QUICKS.forEach(q => {
+    const n = ALL.filter(q.test).length;
+    if(n === 0) return;
+    const el = document.createElement("div");
+    el.className = "chip" + (quickMode === q.key ? " active" : "");
+    el.innerHTML = q.label + '<span class="n">' + n + "</span>";
+    el.onclick = () => {
+      quickMode = (quickMode === q.key) ? "" : q.key;
+      shownCount = PAGE_SIZE; buildFilters(); render();
+    };
+    qbox.appendChild(el);
+  });
+
+  const pbox = document.getElementById("platforms");
+  pbox.innerHTML = "";
+  const counts = {};
+  ALL.forEach(d => counts[d.platform] = (counts[d.platform] || 0) + 1);
+  const plist = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const mkp = (name, n) => {
+    const el = document.createElement("div");
+    el.className = "chip" + (state.platform === name ? " active" : "");
+    el.innerHTML = name + '<span class="n">' + n + "</span>";
+    el.onclick = () => { state.platform = name; shownCount = PAGE_SIZE; buildFilters(); render(); };
+    return el;
+  };
+  pbox.appendChild(mkp("全部", ALL.length));
+  plist.forEach(([p, n]) => pbox.appendChild(mkp(p, n)));
+}
+
+function filtered(){
+  let out = ALL.filter(d => {
+    if(state.platform !== "全部" && d.platform !== state.platform) return false;
+    if(state.pmin != null && (d.price == null || d.price < state.pmin)) return false;
+    if(state.pmax != null && (d.price == null || d.price > state.pmax)) return false;
+    if(quickMode){
+      const q = QUICKS.find(x => x.key === quickMode);
+      if(q && !q.test(d)) return false;
+    }
+    return true;
+  });
+
+  const s = state.sort;
+  if(s === "score") out.sort((a, b) => score(b) - score(a));
+  else if(s === "comments") out.sort((a, b) => b.comments - a.comments);
+  else if(s === "collection") out.sort((a, b) => b.collection - a.collection);
+  else if(s === "worthy") out.sort((a, b) => b.worthy - a.worthy);
+  else if(s === "priceAsc") out.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+  else if(s === "priceDesc") out.sort((a, b) => (b.price ?? -1) - (a.price ?? -1));
+  return out;
+}
+
+function render(){
+  const list = document.getElementById("list");
+  const moreBtn = document.getElementById("moreBtn");
+  const all = filtered();
+
+  if(!all.length){
+    list.innerHTML = "";
+    moreBtn.style.display = "none";
+    setStatus("当前筛选条件下没有结果<br><span style='font-size:12px'>试试放宽条件或点「重置」</span>");
+    return;
+  }
+
+  const slice = all.slice(0, shownCount);
+  list.innerHTML = slice.map(d => {
+    const eng = [];
+    if(d.comments) eng.push("💬" + d.comments);
+    if(d.collection) eng.push("⭐" + d.collection);
+    if(d.worthy) eng.push("👍" + d.worthy);
+    const pct = worthyPct(d);
+    const ms = marks(d).map(m => `<span class="${m.c}">${m.t}</span>`).join("");
+    return `
+      <div class="item">
+        <div class="top">
+          <span class="plat">${esc(d.platform)}</span>
+          ${ms}
+          <span class="tm">${esc(d.time || "")}</span>
+        </div>
+        <div class="title">${esc(d.title)}</div>
+        ${d.brand ? `<div class="brandline">${esc(d.brand)}</div>` : ""}
+        ${d.priceText ? `<div class="price">${esc(d.priceText)}</div>` : ""}
+        <div class="foot">
+          <span class="engage">${eng.join(" ")}${pct !== null ? " · 值率" + pct + "%" : ""}</span>
+          <a class="link" href="${esc(d.link)}" target="_blank" rel="noopener">原页 →</a>
+        </div>
+      </div>`;
+  }).join("");
+
+  if(all.length > shownCount){
+    moreBtn.style.display = "block";
+    moreBtn.textContent = "加载更多（还有 " + (all.length - shownCount) + " 条）";
+  } else {
+    moreBtn.style.display = "none";
+  }
+}
+
+document.getElementById("go").onclick = () => {
+  doSearch(document.getElementById("q").value.trim());
+};
+document.getElementById("q").addEventListener("keydown", e => {
+  if(e.key === "Enter"){ e.preventDefault(); doSearch(e.target.value.trim()); }
+});
+document.querySelectorAll(".qchip").forEach(el => {
+  el.onclick = () => {
+    const k = el.dataset.k;
+    document.getElementById("q").value = k;
+    doSearch(k);
+  };
+});
+document.getElementById("ftoggle").onclick = (e) => {
+  e.currentTarget.classList.toggle("open");
+  document.getElementById("filters").classList.toggle("open");
+};
+document.getElementById("pmin").oninput = e => {
+  state.pmin = e.target.value === "" ? null : parseFloat(e.target.value);
+  shownCount = PAGE_SIZE; render();
+};
+document.getElementById("pmax").oninput = e => {
+  state.pmax = e.target.value === "" ? null : parseFloat(e.target.value);
+  shownCount = PAGE_SIZE; render();
+};
+document.getElementById("reset").onclick = () => {
+  state = { platform: "全部", pmin: null, pmax: null, sort: "score" };
+  quickMode = ""; shownCount = PAGE_SIZE;
+  document.getElementById("pmin").value = "";
+  document.getElementById("pmax").value = "";
+  buildFilters(); render();
+};
+document.getElementById("moreBtn").onclick = () => {
+  shownCount += PAGE_SIZE;
+  render();
+};
+
+const APP_VERSION = "20261101075907-11cf7d7e";
+(function(){
+  const v = document.getElementById("ver");
+  if(v) v.textContent = "v" + (APP_VERSION || "dev").slice(0, 8);
+})();
+
+if("serviceWorker" in navigator){
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if(refreshing) return;
+    refreshing = true;
+    const bar = document.getElementById("updatebar");
+    if(bar) bar.classList.add("show");
+    const btn = document.getElementById("reloadBtn");
+    if(btn) btn.onclick = () => location.reload();
+    setTimeout(() => location.reload(), 1200);
+  });
+
+  window.addEventListener("load", async () => {
+    try{
+      const reg = await navigator.serviceWorker.register("sw.js", { scope: "./" });
+      reg.update().catch(() => {});
+      document.addEventListener("visibilitychange", () => {
+        if(document.visibilityState === "visible") reg.update().catch(() => {});
+      });
+      setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
+    }catch(e){ console.warn("SW 注册失败:", e); }
+  });
+}
+window.addEventListener("pageshow", e => { if(e.persisted) location.reload(); });
+</script>
+</body>
+</html>
