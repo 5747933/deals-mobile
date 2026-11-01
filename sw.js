@@ -5,7 +5,7 @@
  *   - 新版本检测到后，通知页面自动刷新
  */
 
-const VERSION = "20261101085319-538749bd";           // 构建时注入
+const VERSION = "20261101085535-9eb61b3b";           // 构建时注入
 const CACHE = "dealz-" + VERSION;
 
 // 预缓存静态资源（离线可用）

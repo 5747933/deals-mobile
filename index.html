@@ -116,6 +116,33 @@
   }
   .banner b{font-weight:700;}
 
+  /* 当前筛选状态条 */
+  .activefilters{
+    display:none; align-items:center; gap:8px; flex-wrap:wrap;
+    padding:9px 12px; margin-bottom:10px;
+    background:rgba(255,159,10,.10); border:1px solid rgba(255,159,10,.35);
+    border-radius:10px; font-size:12.5px;
+  }
+  .activefilters.show{display:flex;}
+  .activefilters .lbl{color:var(--hot); font-weight:600;}
+  .activefilters .tag{
+    background:rgba(255,159,10,.18); color:var(--hot);
+    padding:2px 9px; border-radius:10px; font-size:12px; font-weight:500;
+  }
+  .activefilters .clr{
+    margin-left:auto; color:var(--accent); font-size:12px;
+    cursor:pointer; border:1px solid rgba(10,132,255,.35);
+    padding:3px 10px; border-radius:8px;
+  }
+  .activefilters .clr:active{background:var(--accent-bg);}
+
+  .resultbar{
+    display:none; font-size:12.5px; color:var(--dim);
+    padding:0 2px 10px;
+  }
+  .resultbar.show{display:block;}
+  .resultbar b{color:var(--price); font-weight:700;}
+
   .list{display:flex; flex-direction:column; gap:10px;}
   .item{
     background:var(--bg-elev); border-radius:12px; padding:13px;
@@ -223,6 +250,8 @@
 
 <main>
   <div class="banner" id="banner" style="display:none"></div>
+  <div class="activefilters" id="activefilters"></div>
+  <div class="resultbar" id="resultbar"></div>
   <div class="status" id="status">输入关键词，搜索全网优惠</div>
   <div class="list" id="list"></div>
   <button class="more" id="moreBtn" style="display:none">加载更多</button>
@@ -297,6 +326,19 @@ function marks(d){
   return out;
 }
 function setStatus(html){ document.getElementById("status").innerHTML = html; }
+
+/* 收起筛选面板，让用户马上看到结果 */
+function collapseFilters(){
+  const t = document.getElementById("ftoggle");
+  const f = document.getElementById("filters");
+  if(t) t.classList.remove("open");
+  if(f) f.classList.remove("open");
+  // 滚动到结果区
+  const rb = document.getElementById("resultbar");
+  if(rb && rb.classList.contains("show")){
+    try { rb.scrollIntoView({behavior: "smooth", block: "start"}); } catch(e){}
+  }
+}
 
 function jsonp(url){
   return new Promise((resolve, reject) => {
@@ -395,7 +437,7 @@ function buildFilters(){
     const el = document.createElement("div");
     el.className = "chip" + (state.sort === s.key ? " active" : "");
     el.textContent = s.label;
-    el.onclick = () => { state.sort = s.key; shownCount = PAGE_SIZE; buildFilters(); render(); };
+    el.onclick = () => { state.sort = s.key; shownCount = PAGE_SIZE; buildFilters(); render(); collapseFilters(); };
     sbox.appendChild(el);
   });
 
@@ -413,7 +455,7 @@ function buildFilters(){
     el.onclick = () => {
       if(!data.length) return;
       quickMode = (quickMode === q.key) ? "" : q.key;
-      shownCount = PAGE_SIZE; buildFilters(); render();
+      shownCount = PAGE_SIZE; buildFilters(); render(); collapseFilters();
     };
     qbox.appendChild(el);
   });
@@ -434,7 +476,10 @@ function buildFilters(){
     const el = document.createElement("div");
     el.className = "chip" + (state.platform === name ? " active" : "");
     el.innerHTML = name + '<span class="n">' + n + "</span>";
-    el.onclick = () => { state.platform = name; shownCount = PAGE_SIZE; buildFilters(); render(); };
+    el.onclick = () => {
+      state.platform = name; shownCount = PAGE_SIZE;
+      buildFilters(); render(); collapseFilters();
+    };
     return el;
   };
   pbox.appendChild(mkp("全部", data.length));
@@ -467,6 +512,9 @@ function render(){
   const list = document.getElementById("list");
   const moreBtn = document.getElementById("moreBtn");
   const all = filtered();
+
+  // ===== 当前筛选状态 =====
+  renderActiveFilters(all.length);
 
   if(!all.length){
     list.innerHTML = "";
@@ -508,6 +556,65 @@ function render(){
   }
 }
 
+/* 显示当前生效的筛选条件 */
+function renderActiveFilters(count){
+  const box = document.getElementById("activefilters");
+  const rbar = document.getElementById("resultbar");
+  const tags = [];
+
+  if(state.platform !== "全部") tags.push("平台：" + state.platform);
+  if(quickMode){
+    const q = QUICKS.find(x => x.key === quickMode);
+    if(q) tags.push(q.label);
+  }
+  if(state.pmin != null || state.pmax != null){
+    const a = state.pmin != null ? state.pmin : "";
+    const b = state.pmax != null ? state.pmax : "";
+    tags.push("价格：" + a + "~" + b + " 元");
+  }
+  // 排序不算筛选条件，但如果非默认也提示
+  if(state.sort !== "score"){
+    const s = SORTS.find(x => x.key === state.sort);
+    if(s) tags.push("排序：" + s.label.replace(/^[^\s]+\s*/, ""));
+  }
+
+  if(tags.length === 0){
+    box.classList.remove("show");
+    box.innerHTML = "";
+  } else {
+    box.classList.add("show");
+    box.innerHTML =
+      '<span class="lbl">已筛选</span>' +
+      tags.map(t => `<span class="tag">${esc(t)}</span>`).join("") +
+      '<span class="clr" id="clrAll">清除</span>';
+    const clr = document.getElementById("clrAll");
+    if(clr) clr.onclick = () => {
+      state.platform = "全部";
+      state.pmin = null;
+      state.pmax = null;
+      state.sort = "score";
+      quickMode = "";
+      shownCount = PAGE_SIZE;
+      document.getElementById("pmin").value = "";
+      document.getElementById("pmax").value = "";
+      buildFilters();
+      render();
+    };
+  }
+
+  // 结果统计
+  if(ALL.length > 0){
+    rbar.classList.add("show");
+    if(tags.length > 0){
+      rbar.innerHTML = "筛选结果：<b>" + count + "</b> 条（共 " + ALL.length + " 条）";
+    } else {
+      rbar.innerHTML = "共 <b>" + ALL.length + "</b> 条";
+    }
+  } else {
+    rbar.classList.remove("show");
+  }
+}
+
 document.getElementById("go").onclick = () => {
   doSearch(document.getElementById("q").value.trim());
 };
@@ -545,7 +652,7 @@ document.getElementById("moreBtn").onclick = () => {
   render();
 };
 
-const APP_VERSION = "20261101085319-538749bd";
+const APP_VERSION = "20261101085535-9eb61b3b";
 (function(){
   const v = document.getElementById("ver");
   if(v) v.textContent = "v" + (APP_VERSION || "dev").slice(0, 8);
