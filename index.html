@@ -144,6 +144,59 @@
   .resultbar b{color:var(--price); font-weight:700;}
 
   .list{display:flex; flex-direction:column; gap:10px;}
+
+  /* ===== 卡片墙布局 ===== */
+  .list.grid-2{
+    display:grid; grid-template-columns:repeat(2, 1fr);
+    gap:8px; align-items:start;
+  }
+  .list.grid-3{
+    display:grid; grid-template-columns:repeat(3, 1fr);
+    gap:6px; align-items:start;
+  }
+  /* 紧凑行布局 */
+  .list.compact{ gap:6px; }
+  .list.compact .item{ padding:10px 12px; gap:4px; }
+  .list.compact .title{ font-size:13.5px; line-height:1.4; }
+  .list.compact .brandline{ display:none; }
+  .list.compact .price{ font-size:15px; }
+  .list.compact .engage{ font-size:10.5px; }
+
+  /* 卡片墙内卡片变小 */
+  .list.grid-2 .item,
+  .list.grid-3 .item{
+    padding:10px; gap:5px; border-radius:10px;
+  }
+  .list.grid-2 .title,
+  .list.grid-3 .title{
+    font-size:13px; line-height:1.4;
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
+  .list.grid-2 .price,
+  .list.grid-3 .price{ font-size:14.5px; }
+  .list.grid-2 .brandline,
+  .list.grid-3 .brandline{
+    font-size:10px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .list.grid-2 .engage,
+  .list.grid-3 .engage{
+    font-size:10px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .list.grid-2 .link,
+  .list.grid-3 .link{
+    padding:4px 9px; font-size:11px;
+  }
+  .list.grid-2 .plat,
+  .list.grid-3 .plat,
+  .list.grid-2 .tag,
+  .list.grid-3 .tag{
+    font-size:10px; padding:1px 6px;
+  }
+  .list.grid-2 .tm,
+  .list.grid-3 .tm{ font-size:10px; }
   .item{
     background:var(--bg-elev); border-radius:12px; padding:13px;
     display:flex; flex-direction:column; gap:7px;
@@ -237,6 +290,10 @@
       <div class="frow" id="platforms"></div>
     </div>
     <div class="fgroup">
+      <div class="flabel">显示方式</div>
+      <div class="frow" id="layouts"></div>
+    </div>
+    <div class="fgroup">
       <div class="flabel">价格区间（元）</div>
       <div class="pricerow">
         <input type="number" id="pmin" placeholder="最低" inputmode="numeric">
@@ -291,6 +348,15 @@ const SORTS = [
 ];
 
 const FOOD_RE = /食|零食|果|奶|酒|茶|咖啡|饮|肉|菜|米|油|饼干|蛋糕|糖|巧克力|坚果|薯片|面包|方便面|火腿|海鲜|水产|蛋|豆干|辣条/;
+
+/* 布局选项 */
+const LAYOUTS = [
+  { key: "list",  label: "📋 列表",  cls: "" },
+  { key: "compact", label: "📄 紧凑", cls: "compact" },
+  { key: "grid2", label: "🔲 双列",  cls: "grid-2" },
+  { key: "grid3", label: "🔳 三列",  cls: "grid-3" },
+];
+let layoutMode = "list";
 const QUICKS = [
   { key: "food",       label: "🍜 只看吃的", test: d => FOOD_RE.test(d.title) },
   { key: "cheap",      label: "💰 50元以下", test: d => d.price != null && d.price <= 50 },
@@ -326,6 +392,15 @@ function marks(d){
   return out;
 }
 function setStatus(html){ document.getElementById("status").innerHTML = html; }
+
+/* 应用布局样式 */
+function applyLayout(){
+  const list = document.getElementById("list");
+  if(!list) return;
+  const L = LAYOUTS.find(x => x.key === layoutMode) || LAYOUTS[0];
+  list.className = "list" + (L.cls ? " " + L.cls : "");
+  // 卡片墙每屏显示更少，但加载更多步长保持一致
+}
 
 /* 收起筛选面板，让用户马上看到结果 */
 function collapseFilters(){
@@ -431,6 +506,24 @@ async function doSearch(kw){
 function buildFilters(){
   const data = ALL.length ? ALL : [];
 
+  // 显示方式
+  const lbox = document.getElementById("layouts");
+  if(lbox){
+    lbox.innerHTML = "";
+    LAYOUTS.forEach(L => {
+      const el = document.createElement("div");
+      el.className = "chip" + (layoutMode === L.key ? " active" : "");
+      el.textContent = L.label;
+      el.onclick = () => {
+        layoutMode = L.key;
+        try { localStorage.setItem("layout", L.key); } catch(e){}
+        applyLayout();
+        buildFilters();
+      };
+      lbox.appendChild(el);
+    });
+  }
+
   const sbox = document.getElementById("sorts");
   sbox.innerHTML = "";
   SORTS.forEach(s => {
@@ -524,6 +617,7 @@ function render(){
   }
 
   const slice = all.slice(0, shownCount);
+  applyLayout();
   list.innerHTML = slice.map(d => {
     const eng = [];
     if(d.comments) eng.push("💬" + d.comments);
@@ -652,7 +746,7 @@ document.getElementById("moreBtn").onclick = () => {
   render();
 };
 
-const APP_VERSION = "20261101085535-9eb61b3b";
+const APP_VERSION = "20261101085811-33f32de2";
 (function(){
   const v = document.getElementById("ver");
   if(v) v.textContent = "v" + (APP_VERSION || "dev").slice(0, 8);
@@ -686,6 +780,13 @@ window.addEventListener("pageshow", e => { if(e.persisted) location.reload(); })
 /* ==================== 启动初始化 ==================== */
 // 打开就加载内容，不用手动搜索
 (function init(){
+  // 恢复上次的布局
+  try {
+    const savedLayout = localStorage.getItem("layout");
+    if(savedLayout && LAYOUTS.some(x => x.key === savedLayout)) layoutMode = savedLayout;
+  } catch(e){}
+  applyLayout();
+
   // 先渲染筛选按钮（空状态）
   buildFilters();
 
