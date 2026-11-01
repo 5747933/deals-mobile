@@ -31,7 +31,7 @@
   header{
     position:sticky; top:0; z-index:100; background:var(--bg-elev);
     border-bottom:1px solid var(--border);
-    padding:calc(10px + var(--safe-t)) 14px 0;
+    padding:calc(52px + var(--safe-t)) 14px 0;
   }
   .brand{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
   .brand h1{font-size:17px; margin:0; font-weight:650; letter-spacing:.2px;}
@@ -94,30 +94,35 @@
   .quickrow{display:flex; gap:8px; margin-top:10px; overflow-x:auto; padding-bottom:8px; scrollbar-width:none;}
   .quickrow::-webkit-scrollbar{display:none;}
 
-  /* 精华模式开关 */
-  .eliterow{ padding:10px 0 2px; }
-  .eliteswitch{
-    display:flex; align-items:center; gap:8px;
-    padding:9px 14px; border-radius:10px; cursor:pointer;
-    background:rgba(48,209,88,.10); border:1px solid rgba(48,209,88,.35);
-    font-size:13.5px; color:var(--good); font-weight:600;
+  /* 精华模式开关 —— 浮动在顶部筛选条下方 */
+  .eliterow{
+    position:fixed; left:12px; right:12px;
+    top:calc(env(safe-area-inset-top, 0px) + 8px);
+    z-index:200; pointer-events:none;
+  }
+  .eliterow .eliteswitch{
+    pointer-events:auto;
+    display:inline-flex; align-items:center; gap:7px;
+    padding:7px 13px; border-radius:20px;
+    background:rgba(48,209,88,.92); border:1px solid rgba(48,209,88,.5);
+    font-size:12.5px; color:#04210c; font-weight:700;
+    box-shadow:0 4px 14px rgba(0,0,0,.45);
+    backdrop-filter:blur(8px);
     transition:all .15s;
   }
-  .eliteswitch:active{ filter:brightness(1.15); }
-  .eliteswitch .dot{
-    width:9px; height:9px; border-radius:50%;
-    background:var(--good); box-shadow:0 0 8px var(--good);
-    flex:0 0 auto;
+  .eliterow .eliteswitch:active{ transform:scale(.96); }
+  .eliterow .eliteswitch .dot{
+    width:7px; height:7px; border-radius:50%;
+    background:#0a7a24; flex:0 0 auto;
   }
-  .eliteswitch .hint{
-    margin-left:auto; font-size:11px; font-weight:400; color:var(--dim);
+  .eliterow .eliteswitch .hint{
+    font-size:11px; font-weight:500; opacity:.75;
   }
-  /* 关闭状态 */
-  .eliteswitch.off{
-    background:rgba(255,255,255,.04); border-color:var(--border);
-    color:var(--dim); font-weight:400;
+  .eliterow .eliteswitch.off{
+    background:rgba(60,60,64,.92); border-color:var(--border);
+    color:var(--dim); font-weight:500;
   }
-  .eliteswitch.off .dot{ background:var(--faint); box-shadow:none; }
+  .eliterow .eliteswitch.off .dot{ background:var(--faint); }
   .qchip{
     flex:0 0 auto; padding:7px 14px; border-radius:16px; font-size:13px;
     border:1px solid var(--border); background:var(--bg); color:var(--text);
@@ -853,7 +858,7 @@ document.getElementById("moreBtn").onclick = () => {
   render();
 };
 
-const APP_VERSION = "20261101100200-2e6d4102";
+const APP_VERSION = "20261101100330-526ba7c1";
 (function(){
   const v = document.getElementById("ver");
   if(v) v.textContent = "v" + (APP_VERSION || "dev").slice(0, 8);
