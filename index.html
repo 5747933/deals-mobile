@@ -241,6 +241,7 @@
 <script>
 const ITEM_CHANNELS = ["youhui", "faxian"];
 const PAGE_SIZE = 60;
+const DEFAULT_KEYWORD = "好价";   // 首页默认加载的内容
 
 let ALL = [];
 let state = { platform: "全部", pmin: null, pmax: null, sort: "score" };
@@ -315,6 +316,7 @@ async function doSearch(kw){
   if(!kw || loading) return;
   loading = true;
   currentKeyword = kw;
+  try { sessionStorage.setItem("lastKw", kw); } catch(e){}
 
   const cbName = "smzcb" + (++cbSeq) + "_" + Date.now();
   let result = null;
@@ -385,6 +387,8 @@ async function doSearch(kw){
 }
 
 function buildFilters(){
+  const data = ALL.length ? ALL : [];
+
   const sbox = document.getElementById("sorts");
   sbox.innerHTML = "";
   SORTS.forEach(s => {
@@ -398,12 +402,16 @@ function buildFilters(){
   const qbox = document.getElementById("quicks");
   qbox.innerHTML = "";
   QUICKS.forEach(q => {
-    const n = ALL.filter(q.test).length;
-    if(n === 0) return;
+    const n = data.filter(q.test).length;
     const el = document.createElement("div");
     el.className = "chip" + (quickMode === q.key ? " active" : "");
-    el.innerHTML = q.label + '<span class="n">' + n + "</span>";
+    el.innerHTML = q.label + (data.length ? '<span class="n">' + n + "</span>" : "");
+    if(data.length === 0){
+      el.style.opacity = "0.45";
+      el.style.pointerEvents = "none";
+    }
     el.onclick = () => {
+      if(!data.length) return;
       quickMode = (quickMode === q.key) ? "" : q.key;
       shownCount = PAGE_SIZE; buildFilters(); render();
     };
@@ -412,8 +420,15 @@ function buildFilters(){
 
   const pbox = document.getElementById("platforms");
   pbox.innerHTML = "";
+  if(!data.length){
+    const tip = document.createElement("div");
+    tip.style.cssText = "font-size:12px;color:#636366;padding:4px 0;";
+    tip.textContent = "搜索后显示";
+    pbox.appendChild(tip);
+    return;
+  }
   const counts = {};
-  ALL.forEach(d => counts[d.platform] = (counts[d.platform] || 0) + 1);
+  data.forEach(d => counts[d.platform] = (counts[d.platform] || 0) + 1);
   const plist = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
   const mkp = (name, n) => {
     const el = document.createElement("div");
@@ -422,7 +437,7 @@ function buildFilters(){
     el.onclick = () => { state.platform = name; shownCount = PAGE_SIZE; buildFilters(); render(); };
     return el;
   };
-  pbox.appendChild(mkp("全部", ALL.length));
+  pbox.appendChild(mkp("全部", data.length));
   plist.forEach(([p, n]) => pbox.appendChild(mkp(p, n)));
 }
 
@@ -530,7 +545,7 @@ document.getElementById("moreBtn").onclick = () => {
   render();
 };
 
-const APP_VERSION = "20261101075907-11cf7d7e";
+const APP_VERSION = "20261101085319-538749bd";
 (function(){
   const v = document.getElementById("ver");
   if(v) v.textContent = "v" + (APP_VERSION || "dev").slice(0, 8);
@@ -560,6 +575,27 @@ if("serviceWorker" in navigator){
   });
 }
 window.addEventListener("pageshow", e => { if(e.persisted) location.reload(); });
+
+/* ==================== 启动初始化 ==================== */
+// 打开就加载内容，不用手动搜索
+(function init(){
+  // 先渲染筛选按钮（空状态）
+  buildFilters();
+
+  const saved = sessionStorage.getItem("lastKw");
+  const kw = saved || DEFAULT_KEYWORD;
+
+  // 延迟一点，等 DOM 就绪
+  const start = () => {
+    document.getElementById("q").value = kw;
+    doSearch(kw);
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
+})();
 </script>
 </body>
 </html>
