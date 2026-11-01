@@ -93,6 +93,31 @@
 
   .quickrow{display:flex; gap:8px; margin-top:10px; overflow-x:auto; padding-bottom:8px; scrollbar-width:none;}
   .quickrow::-webkit-scrollbar{display:none;}
+
+  /* 精华模式开关 */
+  .eliterow{ padding:10px 0 2px; }
+  .eliteswitch{
+    display:flex; align-items:center; gap:8px;
+    padding:9px 14px; border-radius:10px; cursor:pointer;
+    background:rgba(48,209,88,.10); border:1px solid rgba(48,209,88,.35);
+    font-size:13.5px; color:var(--good); font-weight:600;
+    transition:all .15s;
+  }
+  .eliteswitch:active{ filter:brightness(1.15); }
+  .eliteswitch .dot{
+    width:9px; height:9px; border-radius:50%;
+    background:var(--good); box-shadow:0 0 8px var(--good);
+    flex:0 0 auto;
+  }
+  .eliteswitch .hint{
+    margin-left:auto; font-size:11px; font-weight:400; color:var(--dim);
+  }
+  /* 关闭状态 */
+  .eliteswitch.off{
+    background:rgba(255,255,255,.04); border-color:var(--border);
+    color:var(--dim); font-weight:400;
+  }
+  .eliteswitch.off .dot{ background:var(--faint); box-shadow:none; }
   .qchip{
     flex:0 0 auto; padding:7px 14px; border-radius:16px; font-size:13px;
     border:1px solid var(--border); background:var(--bg); color:var(--text);
@@ -271,6 +296,14 @@
     <div class="qchip" data-k="洗发水">🧴 洗发水</div>
   </div>
 
+  <div class="eliterow">
+    <div class="eliteswitch" id="eliteSwitch">
+      <span class="dot" id="eliteDot"></span>
+      <span id="eliteLabel">只看精华</span>
+      <span class="hint" id="eliteHint"></span>
+    </div>
+  </div>
+
   <div class="filter-toggle" id="ftoggle">
     <span>筛选 / 排序 / 布局</span><span class="arrow">▼</span>
   </div>
@@ -327,6 +360,18 @@
 const ITEM_CHANNELS = ["youhui", "faxian"];
 const PAGE_SIZE = 60;
 const DEFAULT_KEYWORD = "好价";   // 首页默认加载的内容
+
+/* 精华模式：只保留社区真正认可的 */
+const ELITE_MODE_DEFAULT = true;
+// 精华判定：综合评分≥30 且 值率≥80%（有值票时）
+function isElite(d){
+  const score = (d.comments||0)*3 + (d.collection||0)*2 + (d.worthy||0);
+  if(score < 30) return false;
+  const w = d.worthy||0, u = d.unworthy||0, t = w + u;
+  if(t > 0 && (w*100/t) < 80) return false;   // 值率低于80%不要
+  return true;
+}
+let eliteMode = ELITE_MODE_DEFAULT;
 
 let ALL = [];
 let state = { platform: "全部", pmin: null, pmax: null, sort: "score" };
@@ -455,9 +500,22 @@ async function doSearch(kw){
   const url = "https://api.smzdm.com/v1/list?keyword=" + encodeURIComponent(kw)
             + "&limit=100&offset=0&callback=" + cbName;
 
+  const url2 = "https://api.smzdm.com/v1/list?keyword=" + encodeURIComponent(kw)
+            + "&limit=100&offset=100&callback=" + cbName + "b";
+
   try{
+    let result2 = null;
+    window[cbName + "b"] = function(data){ result2 = data; };
+
     await jsonp(url);
-    await new Promise(r => setTimeout(r, 80));
+    await new Promise(r => setTimeout(r, 60));
+    // 精华模式下多取一页，避免过滤后太少
+    if(eliteMode){
+      try {
+        await jsonp(url2);
+        await new Promise(r => setTimeout(r, 60));
+      } catch(e){}
+    }
 
     if(!result){ setStatus("没有取到数据，请重试"); return; }
     if(result.error_code !== "0"){
@@ -466,7 +524,11 @@ async function doSearch(kw){
     }
 
     const d = result.data || {};
-    ALL = (d.rows || [])
+    const d2 = (result2 && result2.error_code === "0") ? (result2.data || {}) : null;
+    let rawRows = (d.rows || []).slice();
+    if(d2 && d2.rows) rawRows = rawRows.concat(d2.rows);
+
+    ALL = rawRows
       .filter(r => {
         const ch = (r.article_channel_type || "").toLowerCase();
         return !ch || ITEM_CHANNELS.indexOf(ch) > -1;
@@ -585,8 +647,31 @@ function buildFilters(){
   plist.forEach(([p, n]) => pbox.appendChild(mkp(p, n)));
 }
 
+/* 更新精华开关显示 */
+function updateEliteSwitch(rawCount, keptCount){
+  const sw = document.getElementById("eliteSwitch");
+  const label = document.getElementById("eliteLabel");
+  const hint = document.getElementById("eliteHint");
+  if(!sw) return;
+  if(eliteMode){
+    sw.classList.remove("off");
+    label.textContent = "只看精华";
+    if(rawCount != null && keptCount != null){
+      hint.textContent = keptCount + " / " + rawCount + " 条";
+    } else {
+      hint.textContent = "已过滤噪音";
+    }
+  } else {
+    sw.classList.add("off");
+    label.textContent = "显示全部";
+    hint.textContent = "含低质信息";
+  }
+}
+
 function filtered(){
   let out = ALL.filter(d => {
+    // 精华模式：先过滤噪音
+    if(eliteMode && !isElite(d)) return false;
     if(state.platform !== "全部" && d.platform !== state.platform) return false;
     if(state.pmin != null && (d.price == null || d.price < state.pmin)) return false;
     if(state.pmax != null && (d.price == null || d.price > state.pmax)) return false;
@@ -612,13 +697,20 @@ function render(){
   const moreBtn = document.getElementById("moreBtn");
   const all = filtered();
 
+  // 更新精华开关
+  updateEliteSwitch(ALL.length, all.length);
+
   // ===== 当前筛选状态 =====
   renderActiveFilters(all.length);
 
   if(!all.length){
     list.innerHTML = "";
     moreBtn.style.display = "none";
-    setStatus("当前筛选条件下没有结果<br><span style='font-size:12px'>试试放宽条件或点「重置」</span>");
+    if(eliteMode){
+      setStatus("这个关键词暂时没有精华好价<br><span style='font-size:12px'>可以关掉「只看精华」查看全部</span>");
+    } else {
+      setStatus("当前筛选条件下没有结果<br><span style='font-size:12px'>试试放宽条件或点「重置」</span>");
+    }
     return;
   }
 
@@ -732,6 +824,15 @@ document.getElementById("ftoggle").onclick = (e) => {
   e.currentTarget.classList.toggle("open");
   document.getElementById("filters").classList.toggle("open");
 };
+
+/* 精华模式开关 */
+document.getElementById("eliteSwitch").onclick = () => {
+  eliteMode = !eliteMode;
+  try { localStorage.setItem("elite", eliteMode ? "1" : "0"); } catch(e){}
+  shownCount = PAGE_SIZE;
+  render();
+  buildFilters();
+};
 document.getElementById("pmin").oninput = e => {
   state.pmin = e.target.value === "" ? null : parseFloat(e.target.value);
   shownCount = PAGE_SIZE; render();
@@ -752,7 +853,7 @@ document.getElementById("moreBtn").onclick = () => {
   render();
 };
 
-const APP_VERSION = "20261101090143-49555081";
+const APP_VERSION = "20261101100200-2e6d4102";
 (function(){
   const v = document.getElementById("ver");
   if(v) v.textContent = "v" + (APP_VERSION || "dev").slice(0, 8);
@@ -790,8 +891,12 @@ window.addEventListener("pageshow", e => { if(e.persisted) location.reload(); })
   try {
     const saved = parseInt(localStorage.getItem("layoutCols") || "1", 10);
     if(saved >= 1 && saved <= 5) layoutCols = saved;
+    const e = localStorage.getItem("elite");
+    if(e === "0") eliteMode = false;
+    else if(e === "1") eliteMode = true;
   } catch(e){}
   applyLayout();
+  updateEliteSwitch();
 
   // 先渲染筛选按钮（空状态）
   buildFilters();
