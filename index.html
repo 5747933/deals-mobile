@@ -101,16 +101,14 @@
     z-index:200; pointer-events:none;
   }
   .eliterow .eliteswitch{
-    pointer-events:auto;
+    pointer-events:none;
     display:inline-flex; align-items:center; gap:7px;
     padding:7px 13px; border-radius:20px;
-    background:rgba(48,209,88,.92); border:1px solid rgba(48,209,88,.5);
+    background:rgba(48,209,88,.94); border:1px solid rgba(48,209,88,.5);
     font-size:12.5px; color:#04210c; font-weight:700;
     box-shadow:0 4px 14px rgba(0,0,0,.45);
     backdrop-filter:blur(8px);
-    transition:all .15s;
   }
-  .eliterow .eliteswitch:active{ transform:scale(.96); }
   .eliterow .eliteswitch .dot{
     width:7px; height:7px; border-radius:50%;
     background:#0a7a24; flex:0 0 auto;
@@ -118,11 +116,6 @@
   .eliterow .eliteswitch .hint{
     font-size:11px; font-weight:500; opacity:.75;
   }
-  .eliterow .eliteswitch.off{
-    background:rgba(60,60,64,.92); border-color:var(--border);
-    color:var(--dim); font-weight:500;
-  }
-  .eliterow .eliteswitch.off .dot{ background:var(--faint); }
   .qchip{
     flex:0 0 auto; padding:7px 14px; border-radius:16px; font-size:13px;
     border:1px solid var(--border); background:var(--bg); color:var(--text);
@@ -366,8 +359,8 @@ const ITEM_CHANNELS = ["youhui", "faxian"];
 const PAGE_SIZE = 60;
 const DEFAULT_KEYWORD = "好价";   // 首页默认加载的内容
 
-/* 精华模式：只保留社区真正认可的 */
-const ELITE_MODE_DEFAULT = true;
+/* 精华模式：固定开启，只保留社区真正认可的 */
+const ELITE_MODE = true;
 // 精华判定：综合评分≥30 且 值率≥80%（有值票时）
 function isElite(d){
   const score = (d.comments||0)*3 + (d.collection||0)*2 + (d.worthy||0);
@@ -376,7 +369,6 @@ function isElite(d){
   if(t > 0 && (w*100/t) < 80) return false;   // 值率低于80%不要
   return true;
 }
-let eliteMode = ELITE_MODE_DEFAULT;
 
 let ALL = [];
 let state = { platform: "全部", pmin: null, pmax: null, sort: "score" };
@@ -515,7 +507,7 @@ async function doSearch(kw){
     await jsonp(url);
     await new Promise(r => setTimeout(r, 60));
     // 精华模式下多取一页，避免过滤后太少
-    if(eliteMode){
+    if(ELITE_MODE){
       try {
         await jsonp(url2);
         await new Promise(r => setTimeout(r, 60));
@@ -654,29 +646,21 @@ function buildFilters(){
 
 /* 更新精华开关显示 */
 function updateEliteSwitch(rawCount, keptCount){
-  const sw = document.getElementById("eliteSwitch");
   const label = document.getElementById("eliteLabel");
   const hint = document.getElementById("eliteHint");
-  if(!sw) return;
-  if(eliteMode){
-    sw.classList.remove("off");
-    label.textContent = "只看精华";
-    if(rawCount != null && keptCount != null){
-      hint.textContent = keptCount + " / " + rawCount + " 条";
-    } else {
-      hint.textContent = "已过滤噪音";
-    }
+  if(!label) return;
+  label.textContent = "只看精华";
+  if(rawCount != null && keptCount != null){
+    hint.textContent = keptCount + " / " + rawCount + " 条";
   } else {
-    sw.classList.add("off");
-    label.textContent = "显示全部";
-    hint.textContent = "含低质信息";
+    hint.textContent = "已过滤噪音";
   }
 }
 
 function filtered(){
   let out = ALL.filter(d => {
     // 精华模式：先过滤噪音
-    if(eliteMode && !isElite(d)) return false;
+    if(!isElite(d)) return false;
     if(state.platform !== "全部" && d.platform !== state.platform) return false;
     if(state.pmin != null && (d.price == null || d.price < state.pmin)) return false;
     if(state.pmax != null && (d.price == null || d.price > state.pmax)) return false;
@@ -711,7 +695,7 @@ function render(){
   if(!all.length){
     list.innerHTML = "";
     moreBtn.style.display = "none";
-    if(eliteMode){
+    if(ELITE_MODE){
       setStatus("这个关键词暂时没有精华好价<br><span style='font-size:12px'>可以关掉「只看精华」查看全部</span>");
     } else {
       setStatus("当前筛选条件下没有结果<br><span style='font-size:12px'>试试放宽条件或点「重置」</span>");
@@ -830,14 +814,7 @@ document.getElementById("ftoggle").onclick = (e) => {
   document.getElementById("filters").classList.toggle("open");
 };
 
-/* 精华模式开关 */
-document.getElementById("eliteSwitch").onclick = () => {
-  eliteMode = !eliteMode;
-  try { localStorage.setItem("elite", eliteMode ? "1" : "0"); } catch(e){}
-  shownCount = PAGE_SIZE;
-  render();
-  buildFilters();
-};
+
 document.getElementById("pmin").oninput = e => {
   state.pmin = e.target.value === "" ? null : parseFloat(e.target.value);
   shownCount = PAGE_SIZE; render();
@@ -858,7 +835,7 @@ document.getElementById("moreBtn").onclick = () => {
   render();
 };
 
-const APP_VERSION = "20261101100330-526ba7c1";
+const APP_VERSION = "20261101100652-13d758bb";
 (function(){
   const v = document.getElementById("ver");
   if(v) v.textContent = "v" + (APP_VERSION || "dev").slice(0, 8);
@@ -896,9 +873,6 @@ window.addEventListener("pageshow", e => { if(e.persisted) location.reload(); })
   try {
     const saved = parseInt(localStorage.getItem("layoutCols") || "1", 10);
     if(saved >= 1 && saved <= 5) layoutCols = saved;
-    const e = localStorage.getItem("elite");
-    if(e === "0") eliteMode = false;
-    else if(e === "1") eliteMode = true;
   } catch(e){}
   applyLayout();
   updateEliteSwitch();
